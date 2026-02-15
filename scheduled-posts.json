@@ -1,0 +1,20 @@
+{
+  "scheduledPosts": [
+    {
+      "id": "scheduled_1771153140615_q8r05tus6",
+      "post": {
+        "type": "text",
+        "text": "🧪 即時実行テスト - Threads APIスキル #Test #OpenClaw"
+      },
+      "scheduledAt": "2026-02-15T10:58:00.613Z",
+      "status": "failed",
+      "createdAt": "2026-02-15T10:59:00.615Z",
+      "threadId": null,
+      "publishedAt": null,
+      "retryCount": 0,
+      "updatedAt": "2026-02-15T10:59:00.640Z",
+      "error": "Cannot read properties of undefined (reading 'slice')"
+    }
+  ],
+  "lastUpdated": "2026-02-15T10:59:00.640Z"
+}

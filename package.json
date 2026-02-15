@@ -1,0 +1,26 @@
+{
+  "name": "threads-poster",
+  "version": "1.0.0",
+  "description": "Threads自動投稿スキル - ポートフォリオサイトのブログ記事を自動でThreadsに投稿",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "test": "node test.js"
+  },
+  "keywords": [
+    "threads",
+    "social-media",
+    "auto-post",
+    "blog",
+    "ai"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^17.3.1",
+    "fs-extra": "^11.2.0",
+    "gray-matter": "^4.0.3",
+    "node-fetch": "^3.3.2"
+  }
+}
