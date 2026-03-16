@@ -1,0 +1,76 @@
+name: Post to Threads
+
+on:
+  schedule:
+    # Daily at 07:00 JST = 22:00 UTC (previous day)
+    - cron: '0 22 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Run without actually posting (dry run)'
+        type: boolean
+        default: false
+      max_posts:
+        description: 'Maximum number of posts per run'
+        type: number
+        default: 1
+
+concurrency:
+  group: threads-post
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout threads-poster
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Checkout portfolio-site
+        uses: actions/checkout@v4
+        with:
+          repository: tndg16-bot/portfolio-site
+          path: ../portfolio-site
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run posting script
+        env:
+          THREADS_ACCESS_TOKEN: ${{ secrets.THREADS_ACCESS_TOKEN }}
+          THREADS_APP_ID: ${{ secrets.THREADS_APP_ID }}
+          THREADS_APP_SECRET: ${{ secrets.THREADS_APP_SECRET }}
+          PORTFOLIO_CONTENT_PATH: ${{ secrets.PORTFOLIO_CONTENT_PATH || '../portfolio-site/content/blog' }}
+          PORTFOLIO_BASE_URL: ${{ secrets.PORTFOLIO_BASE_URL || 'https://takahiro-motoyama.vercel.app' }}
+          AI_PROVIDER: ${{ secrets.AI_PROVIDER }}
+          AI_API_KEY: ${{ secrets.AI_API_KEY }}
+          TOKEN_STORE_PATH: ${{ secrets.TOKEN_STORE_PATH || './token-store.json' }}
+          THREADS_DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          MAX_POSTS: ${{ inputs.max_posts || '1' }}
+        run: node index.js
+
+      - name: Commit posted history
+        if: ${{ inputs.dry_run != true }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add posted-threads.json token-store.json || true
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "chore: update posted-threads.json [skip ci]"
+            git push
+          fi
