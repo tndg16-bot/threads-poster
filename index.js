@@ -7,6 +7,11 @@ import fs from 'fs-extra';
 import path from 'path';
 import matter from 'gray-matter';
 import fetch from 'node-fetch';
+import { createRequire } from 'module';
+
+const require = createRequire(import.meta.url);
+const AiGenerator = require('./lib/ai-generator');
+const MediaHandler = require('./lib/media-handler');
 
 /**
  * ブログ記事のメタデータを取得する
@@ -111,18 +116,22 @@ async function savePostedHistory(filePath, postedIds) {
 async function generateThreadPost(post, config) {
   try {
     const { baseUrl } = config.portfolioSite;
-    const { generateWithAI } = config.posting;
-
-    // ブログ記事のURLを生成
     const postUrl = `${baseUrl}/blog/${post.slug}`;
 
-    // AI生成が無効な場合、フォールバックロジックを使用
-    if (!generateWithAI) {
-      return generateFallbackPost(post, postUrl);
+    // AI生成が有効な場合、AiGeneratorを使用
+    if (config.posting.generateWithAI) {
+      const aiGenerator = new AiGenerator();
+      if (aiGenerator.isAvailable()) {
+        const aiText = await aiGenerator.generateThreadsPost(post, postUrl);
+        if (aiText) {
+          console.log('[Threads Poster] AI生成に成功しました');
+          return aiText;
+        }
+        console.warn('[Threads Poster] AI生成が空のためフォールバックを使用します');
+      }
     }
 
-    // AIによる投稿内容の生成（現在はフォールバックロジック）
-    // 将来的にはOpenAI APIなどを使用してより良い投稿内容を生成
+    // フォールバックテンプレートを使用
     return generateFallbackPost(post, postUrl);
   } catch (error) {
     console.error('[Threads Poster] 投稿内容の生成に失敗しました:', error);
@@ -290,12 +299,33 @@ async function postToThreads(post, config) {
       ? post.tags[0].replace(/[.&]/g, '').slice(0, 50)
       : null;
 
-    // メイン投稿の作成（URLなし + topic_tag付き）
-    const threadId = await createThread(threadContent, config.threads.accessToken, { topicTag });
-    console.log('[Threads Poster] スレッドを作成しました:', threadId);
+    let publishedId;
 
-    // メイン投稿の公開
-    const publishedId = await publishThread(threadId, config.threads.accessToken);
+    // OGP画像付き投稿を試行（IMAGE type）
+    if (config.posting.enableImagePost !== false) {
+      try {
+        const mediaHandler = new MediaHandler({
+          baseUrl: config.portfolioSite.baseUrl,
+          accessToken: config.threads.accessToken
+        });
+        const ogpImageUrl = await mediaHandler.getOgpImageUrl(post.slug);
+        if (ogpImageUrl) {
+          console.log(`[Threads Poster] OGP画像を検出: ${ogpImageUrl}`);
+          const imageResult = await mediaHandler.postWithImage(threadContent, ogpImageUrl, post.title);
+          publishedId = imageResult.publishedId;
+          console.log(`[Threads Poster] IMAGE投稿に成功しました: ${publishedId}`);
+        }
+      } catch (imageError) {
+        console.warn('[Threads Poster] IMAGE投稿に失敗、TEXT投稿にフォールバックします:', imageError.message);
+      }
+    }
+
+    // TEXT投稿にフォールバック
+    if (!publishedId) {
+      const threadId = await createThread(threadContent, config.threads.accessToken, { topicTag });
+      console.log('[Threads Poster] TEXTスレッドを作成しました:', threadId);
+      publishedId = await publishThread(threadId, config.threads.accessToken);
+    }
 
     // セルフリプライでURLを追加（リーチ制限回避）
     const postUrl = `${config.portfolioSite.baseUrl}/blog/${post.slug}`;
