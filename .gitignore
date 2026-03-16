@@ -7,6 +7,7 @@ node_modules/
 
 # Config files with sensitive data
 config.json
+token-store.json
 
 # Posted history
 posted-threads.json

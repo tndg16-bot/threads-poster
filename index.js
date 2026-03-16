@@ -150,27 +150,39 @@ function generateFallbackPost(post, postUrl) {
   };
   const emoji = emojis[category] || '✨';
 
-  // ハッシュタグの選択（最大3つ）
-  const hashtags = tags.slice(0, 3).map(tag => `#${tag.replace(/\s/g, '')}`);
+  // Threadsの設計思想に合わせてトピックタグは1個のみ
+  const hashtags = tags.slice(0, 1).map(tag => `#${tag.replace(/\s/g, '')}`);
 
-  // 投稿内容の構築
-  let content = '';
+  // テンプレートバリエーション
+  const templates = [
+    // テンプレート1: 質問形式
+    () => {
+      let c = `${emoji} ${title}\n\n`;
+      if (description) c += `${description}\n\n`;
+      c += `詳しくはこちら 👇\n${postUrl}`;
+      if (hashtags.length > 0) c += `\n\n${hashtags[0]}`;
+      return c;
+    },
+    // テンプレート2: インサイト形式
+    () => {
+      let c = `💡 ${title}\n\n`;
+      if (description) c += `${description}\n\n`;
+      c += `${postUrl}`;
+      if (hashtags.length > 0) c += `\n\n${hashtags[0]}`;
+      return c;
+    },
+    // テンプレート3: シンプル形式
+    () => {
+      let c = `${title} ${emoji}\n\n`;
+      c += `${postUrl}`;
+      if (hashtags.length > 0) c += `\n\n${hashtags[0]}`;
+      return c;
+    }
+  ];
 
-  // タイトルと絵文字
-  content += `${title} ${emoji}\n\n`;
-
-  // 説明文（がある場合）
-  if (description) {
-    content += `${description}\n\n`;
-  }
-
-  // URL
-  content += `続きはこちら 👇\n${postUrl}\n\n`;
-
-  // ハッシュタグ
-  if (hashtags.length > 0) {
-    content += hashtags.join(' ');
-  }
+  // ランダムにテンプレートを選択
+  const template = templates[Math.floor(Math.random() * templates.length)];
+  let content = template();
 
   // 500文字以内に制限
   if (content.length > 500) {
@@ -322,6 +334,28 @@ async function main(config, sendMessage) {
       return;
     }
 
+    // クォータ残量の確認（250件/24h）
+    try {
+      const quotaResponse = await fetch(
+        `https://graph.threads.net/v1.0/me/threads_publishing_limit?fields=quota_usage,config`,
+        {
+          headers: { 'Authorization': `Bearer ${config.threads.accessToken}` }
+        }
+      );
+      const quotaData = await quotaResponse.json();
+      if (quotaData.data && quotaData.data[0]) {
+        const quota = quotaData.data[0];
+        const remaining = (quota.config?.quota_total || 250) - (quota.quota_usage || 0);
+        console.log(`[Threads Poster] クォータ残量: ${remaining}/${quota.config?.quota_total || 250}`);
+        if (remaining < postsToPost.length) {
+          console.warn(`[Threads Poster] クォータ不足: ${remaining}件しか投稿できません（${postsToPost.length}件予定）`);
+          postsToPost.splice(remaining); // 投稿可能数に制限
+        }
+      }
+    } catch (quotaError) {
+      console.warn('[Threads Poster] クォータ確認に失敗しましたが、投稿を続行します:', quotaError.message);
+    }
+
     // 投稿実行
     const results = [];
     for (const post of postsToPost) {
@@ -333,8 +367,8 @@ async function main(config, sendMessage) {
         postedIds.add(post.id);
       }
 
-      // レート制限を回避するための待機
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // レート制限回避のため最低5秒間隔
+      await new Promise(resolve => setTimeout(resolve, 5000));
     }
 
     // 投稿履歴の保存
