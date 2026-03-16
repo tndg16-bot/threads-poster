@@ -131,9 +131,9 @@ async function generateThreadPost(post, config) {
 }
 
 /**
- * フォールバックロジックで投稿内容を生成する
+ * フォールバックロジックで投稿内容を生成する（URLなし、セルフリプライ戦略対応）
  * @param {Object} post - ブログ記事
- * @param {string} postUrl - ブログ記事のURL
+ * @param {string} postUrl - ブログ記事のURL（未使用、セルフリプライで送信）
  * @returns {string} Threads用の投稿内容
  */
 function generateFallbackPost(post, postUrl) {
@@ -150,32 +150,27 @@ function generateFallbackPost(post, postUrl) {
   };
   const emoji = emojis[category] || '✨';
 
-  // Threadsの設計思想に合わせてトピックタグは1個のみ
-  const hashtags = tags.slice(0, 1).map(tag => `#${tag.replace(/\s/g, '')}`);
-
-  // テンプレートバリエーション
+  // テンプレートバリエーション（URLなし、エンゲージメント重視）
   const templates = [
     // テンプレート1: 質問形式
     () => {
       let c = `${emoji} ${title}\n\n`;
       if (description) c += `${description}\n\n`;
-      c += `詳しくはこちら 👇\n${postUrl}`;
-      if (hashtags.length > 0) c += `\n\n${hashtags[0]}`;
+      c += `あなたはどう思いますか？`;
       return c;
     },
     // テンプレート2: インサイト形式
     () => {
       let c = `💡 ${title}\n\n`;
       if (description) c += `${description}\n\n`;
-      c += `${postUrl}`;
-      if (hashtags.length > 0) c += `\n\n${hashtags[0]}`;
+      c += `気になった方はリプライをチェック 👇`;
       return c;
     },
     // テンプレート3: シンプル形式
     () => {
       let c = `${title} ${emoji}\n\n`;
-      c += `${postUrl}`;
-      if (hashtags.length > 0) c += `\n\n${hashtags[0]}`;
+      if (description) c += `${description}\n\n`;
+      c += `続きはリプライで 👇`;
       return c;
     }
   ];
@@ -196,20 +191,38 @@ function generateFallbackPost(post, postUrl) {
  * Threadsにスレッドを作成する
  * @param {string} text - スレッドのテキスト
  * @param {string} accessToken - Threads Access Token
+ * @param {Object} options - オプション
+ * @param {string} [options.topicTag] - トピックタグ（1個、1-50文字、.と&不可）
+ * @param {string} [options.replyToId] - セルフリプライ先の投稿ID
  * @returns {Promise<string>} スレッドID
  */
-async function createThread(text, accessToken) {
+async function createThread(text, accessToken, options = {}) {
   try {
+    const body = {
+      media_type: 'TEXT',
+      text: text
+    };
+
+    // topic_tag サポート（1個、1-50文字、.と&不可）
+    if (options.topicTag) {
+      const tag = options.topicTag.replace(/[.&]/g, '').slice(0, 50);
+      if (tag.length > 0) {
+        body.topic_tag = tag;
+      }
+    }
+
+    // セルフリプライ用
+    if (options.replyToId) {
+      body.reply_to_id = options.replyToId;
+    }
+
     const response = await fetch('https://graph.threads.net/v1.0/me/threads', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${accessToken}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
-        media_type: 'TEXT',
-        text: text
-      })
+      body: JSON.stringify(body)
     });
 
     const data = await response.json();
@@ -249,7 +262,9 @@ async function publishThread(threadId, accessToken) {
       throw new Error(`Threads API error: ${data.error ? data.error.message : 'Unknown error'}`);
     }
 
-    console.log('[Threads Poster] スレッドを公開しました:', threadId);
+    const publishedId = data.id || threadId;
+    console.log('[Threads Poster] スレッドを公開しました:', publishedId);
+    return publishedId;
   } catch (error) {
     console.error('[Threads Poster] スレッドの公開に失敗しました:', error);
     throw error;
@@ -266,21 +281,37 @@ async function postToThreads(post, config) {
   try {
     console.log(`[Threads Poster] 投稿を開始します: ${post.title}`);
 
-    // 投稿内容の生成
+    // 投稿内容の生成（URLなし、セルフリプライ戦略）
     const threadContent = await generateThreadPost(post, config);
     console.log('[Threads Poster] 投稿内容を生成しました:', threadContent);
 
-    // スレッドの作成
-    const threadId = await createThread(threadContent, config.threads.accessToken);
+    // topic_tagの決定（最初のタグから）
+    const topicTag = post.tags && post.tags.length > 0
+      ? post.tags[0].replace(/[.&]/g, '').slice(0, 50)
+      : null;
+
+    // メイン投稿の作成（URLなし + topic_tag付き）
+    const threadId = await createThread(threadContent, config.threads.accessToken, { topicTag });
     console.log('[Threads Poster] スレッドを作成しました:', threadId);
 
-    // スレッドの公開
-    await publishThread(threadId, config.threads.accessToken);
+    // メイン投稿の公開
+    const publishedId = await publishThread(threadId, config.threads.accessToken);
+
+    // セルフリプライでURLを追加（リーチ制限回避）
+    const postUrl = `${config.portfolioSite.baseUrl}/blog/${post.slug}`;
+    const replyText = `📖 記事の全文はこちら\n${postUrl}`;
+    try {
+      const replyId = await createThread(replyText, config.threads.accessToken, { replyToId: publishedId });
+      await publishThread(replyId, config.threads.accessToken);
+      console.log('[Threads Poster] セルフリプライを投稿しました');
+    } catch (replyError) {
+      console.warn('[Threads Poster] セルフリプライの投稿に失敗しましたが、メイン投稿は成功しています:', replyError.message);
+    }
 
     return {
       success: true,
       postId: post.id,
-      threadId: threadId,
+      threadId: publishedId,
       threadContent: threadContent
     };
   } catch (error) {
