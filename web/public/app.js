@@ -829,6 +829,7 @@ function initBuzzTemplates() {
   document.querySelectorAll('.buzz-template-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
       const template = btn.dataset.template?.replace(/\\n/g, '\n') || '';
+      const recommendedTime = btn.dataset.time || '';
 
       // Switch to create tab
       document.querySelector('.tab-btn[data-tab="create"]')?.click();
@@ -840,6 +841,25 @@ function initBuzzTemplates() {
         textarea.dispatchEvent(new Event('input'));
         textarea.focus();
         textarea.setSelectionRange(0, 0);
+      }
+
+      // Set the optimal time preset based on the pattern's recommended time
+      if (recommendedTime) {
+        const timeInput = document.getElementById('create-time');
+        if (timeInput) {
+          timeInput.value = recommendedTime;
+        }
+
+        // Highlight the matching time preset button
+        document.querySelectorAll('.time-preset').forEach((presetBtn) => {
+          if (presetBtn.dataset.time === recommendedTime) {
+            presetBtn.classList.add('border-threads-500', 'text-threads-400');
+            presetBtn.classList.remove('border-slate-700', 'text-gray-400');
+          } else {
+            presetBtn.classList.remove('border-threads-500', 'text-threads-400');
+            presetBtn.classList.add('border-slate-700', 'text-gray-400');
+          }
+        });
       }
 
       showToast('テンプレートを挿入しました', 'info');

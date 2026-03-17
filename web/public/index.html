@@ -371,94 +371,268 @@
           <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
           バズる投稿の型
         </h2>
-        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" id="buzz-patterns">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="buzz-patterns">
 
-          <!-- 質問型 -->
-          <div class="card-hover rounded-2xl bg-slate-800/50 border border-slate-700/30 p-5">
+          <!-- 1. 質問型 -->
+          <div class="card-hover rounded-2xl bg-slate-800/50 border border-slate-700/30 p-5 flex flex-col">
             <div class="flex items-center gap-2 mb-3">
               <div class="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center">
-                <span class="text-lg">?</span>
+                <span class="text-lg">&#129300;</span>
               </div>
               <h3 class="font-semibold">質問型</h3>
-              <span class="ml-auto text-xs text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-full">高エンゲージメント</span>
+              <span class="ml-auto text-xs text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-full">リプ獲得</span>
             </div>
             <div class="bg-slate-900/50 rounded-xl p-3 mb-3 border border-slate-700/20">
-              <p class="text-sm text-gray-300 italic">"〜だと思いますか？実は..."</p>
+              <p class="text-sm text-gray-300 whitespace-pre-wrap leading-relaxed">"みんなに聞きたい。
+
+あなたが今年いちばん「やってよかった」と思う習慣は？
+
+自分は朝5時起きを始めてから人生変わった。
+
+あなたはどう思う？"</p>
             </div>
-            <p class="text-xs text-gray-400 mb-4">読者に考えさせる質問で始めると、コメントやいいねが集まりやすい。「実は」で意外性を出すのがポイント。</p>
-            <button class="buzz-template-btn w-full px-3 py-2 text-xs font-medium rounded-lg bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 border border-purple-500/20 transition-colors" data-template="〜だと思いますか？\n\n実は、{内容}\n\nあなたはどう思いますか？">
+            <div class="flex items-center gap-3 mb-4 text-xs text-gray-500">
+              <span class="flex items-center gap-1"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> 夜19-22時</span>
+              <span class="flex items-center gap-1"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg> リプ獲得</span>
+            </div>
+            <button class="buzz-template-btn w-full px-3 py-2 text-xs font-medium rounded-lg bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 border border-purple-500/20 transition-colors mt-auto" data-template="みんなに聞きたい。\n\n[共感できる問い]\n\n[背景]\n\nあなたはどう思う？" data-time="21:00">
               このテンプレで作成
             </button>
           </div>
 
-          <!-- 数字型 -->
-          <div class="card-hover rounded-2xl bg-slate-800/50 border border-slate-700/30 p-5">
-            <div class="flex items-center gap-2 mb-3">
-              <div class="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center">
-                <span class="text-lg font-bold text-blue-400">#</span>
-              </div>
-              <h3 class="font-semibold">数字型</h3>
-              <span class="ml-auto text-xs text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full">信頼性UP</span>
-            </div>
-            <div class="bg-slate-900/50 rounded-xl p-3 mb-3 border border-slate-700/20">
-              <p class="text-sm text-gray-300 italic">"○○が△△%アップした方法..."</p>
-            </div>
-            <p class="text-xs text-gray-400 mb-4">具体的な数字を含めることで信頼性と目を引く力がアップ。割合や回数など定量的なデータを入れよう。</p>
-            <button class="buzz-template-btn w-full px-3 py-2 text-xs font-medium rounded-lg bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 border border-blue-500/20 transition-colors" data-template="{指標}が{数字}%{変化}した方法\n\n{具体的な内容}\n\n詳しくはリプライで 👇">
-              このテンプレで作成
-            </button>
-          </div>
-
-          <!-- 体験型 -->
-          <div class="card-hover rounded-2xl bg-slate-800/50 border border-slate-700/30 p-5">
-            <div class="flex items-center gap-2 mb-3">
-              <div class="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center">
-                <span class="text-lg">!</span>
-              </div>
-              <h3 class="font-semibold">体験型</h3>
-              <span class="ml-auto text-xs text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">共感獲得</span>
-            </div>
-            <div class="bg-slate-900/50 rounded-xl p-3 mb-3 border border-slate-700/20">
-              <p class="text-sm text-gray-300 italic">"〜してみたら、衝撃の結果に..."</p>
-            </div>
-            <p class="text-xs text-gray-400 mb-4">自分の体験談をベースにすると共感を得やすい。「してみたら」「やってみた」で始めると読まれやすい。</p>
-            <button class="buzz-template-btn w-full px-3 py-2 text-xs font-medium rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20 transition-colors" data-template="{行動}してみたら、{結果}になった話\n\n{詳細}\n\n同じ経験ある人いますか？">
-              このテンプレで作成
-            </button>
-          </div>
-
-          <!-- 逆説型 -->
-          <div class="card-hover rounded-2xl bg-slate-800/50 border border-slate-700/30 p-5">
-            <div class="flex items-center gap-2 mb-3">
-              <div class="w-8 h-8 rounded-lg bg-red-500/20 flex items-center justify-center">
-                <span class="text-lg font-bold text-red-400">!</span>
-              </div>
-              <h3 class="font-semibold">逆説型</h3>
-              <span class="ml-auto text-xs text-red-400 bg-red-500/10 px-2 py-0.5 rounded-full">注目度MAX</span>
-            </div>
-            <div class="bg-slate-900/50 rounded-xl p-3 mb-3 border border-slate-700/20">
-              <p class="text-sm text-gray-300 italic">"実は〜ではない。本当は..."</p>
-            </div>
-            <p class="text-xs text-gray-400 mb-4">常識を覆す内容は目を引く。「実は」「本当は」でギャップを作り、読者の興味を引こう。</p>
-            <button class="buzz-template-btn w-full px-3 py-2 text-xs font-medium rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/20 transition-colors" data-template="「{常識}」は間違いだった\n\n実は、{真実}\n\n意外じゃないですか？">
-              このテンプレで作成
-            </button>
-          </div>
-
-          <!-- リスト型 -->
-          <div class="card-hover rounded-2xl bg-slate-800/50 border border-slate-700/30 p-5">
+          <!-- 2. リスト型 -->
+          <div class="card-hover rounded-2xl bg-slate-800/50 border border-slate-700/30 p-5 flex flex-col">
             <div class="flex items-center gap-2 mb-3">
               <div class="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center">
-                <span class="text-lg font-bold text-amber-400">5</span>
+                <span class="text-lg">&#128221;</span>
               </div>
               <h3 class="font-semibold">リスト型</h3>
-              <span class="ml-auto text-xs text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full">保存率UP</span>
+              <span class="ml-auto text-xs text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full">保存獲得</span>
             </div>
             <div class="bg-slate-900/50 rounded-xl p-3 mb-3 border border-slate-700/20">
-              <p class="text-sm text-gray-300 italic">"○つの理由 / ○つの方法..."</p>
+              <p class="text-sm text-gray-300 whitespace-pre-wrap leading-relaxed">"知らないと損するAI時短術5選
+
+1. ChatGPTでメール下書き → 作業時間1/3
+2. Notionに議事録自動要約 → 会議後5分で共有
+3. Canva AI → デザイン経験ゼロでもプロ級
+4. Dify → ノーコードでAIアプリ作成
+5. Claude → 長文分析が圧倒的
+
+保存して試してみて。"</p>
             </div>
-            <p class="text-xs text-gray-400 mb-4">リスト形式は読みやすく保存されやすい。奇数（3,5,7）が心理的に好まれる。具体的な数字をタイトルに入れよう。</p>
-            <button class="buzz-template-btn w-full px-3 py-2 text-xs font-medium rounded-lg bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 border border-amber-500/20 transition-colors" data-template="{テーマ}の{数}つの{理由/方法}\n\n1. {項目1}\n2. {項目2}\n3. {項目3}\n\n保存して後で見返してね">
+            <div class="flex items-center gap-3 mb-4 text-xs text-gray-500">
+              <span class="flex items-center gap-1"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> 朝7-9時</span>
+              <span class="flex items-center gap-1"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg> 保存獲得</span>
+            </div>
+            <button class="buzz-template-btn w-full px-3 py-2 text-xs font-medium rounded-lg bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 border border-amber-500/20 transition-colors mt-auto" data-template="知らないと損する○○5選\n\n1. [項目] → [効果]\n2. [項目] → [効果]\n3. [項目] → [効果]\n4. [項目] → [効果]\n5. [項目] → [効果]\n\n保存して試してみて。" data-time="07:00">
+              このテンプレで作成
+            </button>
+          </div>
+
+          <!-- 3. 体験談型 -->
+          <div class="card-hover rounded-2xl bg-slate-800/50 border border-slate-700/30 p-5 flex flex-col">
+            <div class="flex items-center gap-2 mb-3">
+              <div class="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center">
+                <span class="text-lg">&#128172;</span>
+              </div>
+              <h3 class="font-semibold">体験談型</h3>
+              <span class="ml-auto text-xs text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">いいね+拡散</span>
+            </div>
+            <div class="bg-slate-900/50 rounded-xl p-3 mb-3 border border-slate-700/20">
+              <p class="text-sm text-gray-300 whitespace-pre-wrap leading-relaxed">"正直に言う。
+
+副業で月5万稼げるようになるまで1年半かかった。
+
+最初の半年は収益ゼロ。何度もやめようと思った。でも「あと1ヶ月だけ」を繰り返した。
+
+続けた人だけが見える景色がある。"</p>
+            </div>
+            <div class="flex items-center gap-3 mb-4 text-xs text-gray-500">
+              <span class="flex items-center gap-1"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> 夜20-22時</span>
+              <span class="flex items-center gap-1"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg> いいね+拡散</span>
+            </div>
+            <button class="buzz-template-btn w-full px-3 py-2 text-xs font-medium rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20 transition-colors mt-auto" data-template="正直に言う。\n\n[告白/衝撃の結果]\n\n[ストーリー]\n\n[学び]" data-time="21:00">
+              このテンプレで作成
+            </button>
+          </div>
+
+          <!-- 4. 逆説型 -->
+          <div class="card-hover rounded-2xl bg-slate-800/50 border border-slate-700/30 p-5 flex flex-col">
+            <div class="flex items-center gap-2 mb-3">
+              <div class="w-8 h-8 rounded-lg bg-red-500/20 flex items-center justify-center">
+                <span class="text-lg">&#128293;</span>
+              </div>
+              <h3 class="font-semibold">逆説型</h3>
+              <span class="ml-auto text-xs text-red-400 bg-red-500/10 px-2 py-0.5 rounded-full">引用リプ+議論</span>
+            </div>
+            <div class="bg-slate-900/50 rounded-xl p-3 mb-3 border border-slate-700/20">
+              <p class="text-sm text-gray-300 whitespace-pre-wrap leading-relaxed">"「努力は必ず報われる」は嘘。
+
+その理由は…
+
+正しい方向に努力しないと、ただの消耗。戦略のない努力は自己満足でしかない。"</p>
+            </div>
+            <div class="flex items-center gap-3 mb-4 text-xs text-gray-500">
+              <span class="flex items-center gap-1"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> 午前9-12時</span>
+              <span class="flex items-center gap-1"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg> 引用リプ+議論</span>
+            </div>
+            <button class="buzz-template-btn w-full px-3 py-2 text-xs font-medium rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/20 transition-colors mt-auto" data-template="[常識と逆のことを断言]\n\nその理由は…\n\n[本質的な気づき]" data-time="09:00">
+              このテンプレで作成
+            </button>
+          </div>
+
+          <!-- 5. 数字型 -->
+          <div class="card-hover rounded-2xl bg-slate-800/50 border border-slate-700/30 p-5 flex flex-col">
+            <div class="flex items-center gap-2 mb-3">
+              <div class="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center">
+                <span class="text-lg">&#128202;</span>
+              </div>
+              <h3 class="font-semibold">数字型</h3>
+              <span class="ml-auto text-xs text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full">保存+シェア</span>
+            </div>
+            <div class="bg-slate-900/50 rounded-xl p-3 mb-3 border border-slate-700/20">
+              <p class="text-sm text-gray-300 whitespace-pre-wrap leading-relaxed">"日本人の87%がやっていない「朝の15分」
+
+この15分で1日の生産性が2倍になるデータがある。
+
+やることはシンプル。スマホを見る前に紙に3つだけ書く。今日やること。"</p>
+            </div>
+            <div class="flex items-center gap-3 mb-4 text-xs text-gray-500">
+              <span class="flex items-center gap-1"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> 朝7-9時</span>
+              <span class="flex items-center gap-1"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg> 保存+シェア</span>
+            </div>
+            <button class="buzz-template-btn w-full px-3 py-2 text-xs font-medium rounded-lg bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 border border-blue-500/20 transition-colors mt-auto" data-template="[衝撃の数字]\n\n[その意味]\n\n[実用的なアクション]" data-time="07:00">
+              このテンプレで作成
+            </button>
+          </div>
+
+          <!-- 6. Before/After型 -->
+          <div class="card-hover rounded-2xl bg-slate-800/50 border border-slate-700/30 p-5 flex flex-col">
+            <div class="flex items-center gap-2 mb-3">
+              <div class="w-8 h-8 rounded-lg bg-cyan-500/20 flex items-center justify-center">
+                <span class="text-lg">&#10024;</span>
+              </div>
+              <h3 class="font-semibold">Before/After型</h3>
+              <span class="ml-auto text-xs text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded-full">リプ+保存</span>
+            </div>
+            <div class="bg-slate-900/50 rounded-xl p-3 mb-3 border border-slate-700/20">
+              <p class="text-sm text-gray-300 whitespace-pre-wrap leading-relaxed">"【Before】毎日残業、土日も仕事が頭から離れない
+&#8595;
+【After】定時退社、週末は家族とキャンプ
+
+きっかけは「タスクを半分に減らす」と決めたこと。"</p>
+            </div>
+            <div class="flex items-center gap-3 mb-4 text-xs text-gray-500">
+              <span class="flex items-center gap-1"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> 朝7-9時</span>
+              <span class="flex items-center gap-1"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg> リプ+保存</span>
+            </div>
+            <button class="buzz-template-btn w-full px-3 py-2 text-xs font-medium rounded-lg bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 border border-cyan-500/20 transition-colors mt-auto" data-template="【Before】[ダメだった状態]\n↓\n【After】[変化後]\n\nきっかけは[1つのこと]" data-time="07:00">
+              このテンプレで作成
+            </button>
+          </div>
+
+          <!-- 7. ○○する人しない人型 -->
+          <div class="card-hover rounded-2xl bg-slate-800/50 border border-slate-700/30 p-5 flex flex-col">
+            <div class="flex items-center gap-2 mb-3">
+              <div class="w-8 h-8 rounded-lg bg-yellow-500/20 flex items-center justify-center">
+                <span class="text-lg">&#9889;</span>
+              </div>
+              <h3 class="font-semibold">する人しない人型</h3>
+              <span class="ml-auto text-xs text-yellow-400 bg-yellow-500/10 px-2 py-0.5 rounded-full">いいね+引用</span>
+            </div>
+            <div class="bg-slate-900/50 rounded-xl p-3 mb-3 border border-slate-700/20">
+              <p class="text-sm text-gray-300 whitespace-pre-wrap leading-relaxed">"成長が速い人と遅い人の決定的な違い
+
+する人：→ インプットしたらすぐアウトプット
+しない人：→ 「もう少し勉強してから」と先延ばし
+
+完璧を待つより、60点で出す方が100倍成長する。"</p>
+            </div>
+            <div class="flex items-center gap-3 mb-4 text-xs text-gray-500">
+              <span class="flex items-center gap-1"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> 昼12-13時</span>
+              <span class="flex items-center gap-1"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg> いいね+引用</span>
+            </div>
+            <button class="buzz-template-btn w-full px-3 py-2 text-xs font-medium rounded-lg bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20 border border-yellow-500/20 transition-colors mt-auto" data-template="[成果が出る人と出ない人の違い]\n\nする人：→ [行動]\nしない人：→ [行動]\n\n[本質]" data-time="12:00">
+              このテンプレで作成
+            </button>
+          </div>
+
+          <!-- 8. 共感型 -->
+          <div class="card-hover rounded-2xl bg-slate-800/50 border border-slate-700/30 p-5 flex flex-col">
+            <div class="flex items-center gap-2 mb-3">
+              <div class="w-8 h-8 rounded-lg bg-pink-500/20 flex items-center justify-center">
+                <span class="text-lg">&#129303;</span>
+              </div>
+              <h3 class="font-semibold">共感型</h3>
+              <span class="ml-auto text-xs text-pink-400 bg-pink-500/10 px-2 py-0.5 rounded-full">いいね+共感コメント</span>
+            </div>
+            <div class="bg-slate-900/50 rounded-xl p-3 mb-3 border border-slate-700/20">
+              <p class="text-sm text-gray-300 whitespace-pre-wrap leading-relaxed">"「頑張ってるのに結果が出ない」って思ってる人へ。
+
+それ、方向が間違ってるんじゃなくて、あと少しなだけかもしれない。
+
+種を蒔いてすぐ花は咲かない。でも確実に根は張ってる。"</p>
+            </div>
+            <div class="flex items-center gap-3 mb-4 text-xs text-gray-500">
+              <span class="flex items-center gap-1"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> 夜20-22時</span>
+              <span class="flex items-center gap-1"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg> いいね+共感コメント</span>
+            </div>
+            <button class="buzz-template-btn w-full px-3 py-2 text-xs font-medium rounded-lg bg-pink-500/10 text-pink-400 hover:bg-pink-500/20 border border-pink-500/20 transition-colors mt-auto" data-template="[みんなが思ってるけど言えないこと]\n\n[あるある]\n\n[ちょっとした救い]" data-time="21:00">
+              このテンプレで作成
+            </button>
+          </div>
+
+          <!-- 9. Tips型 -->
+          <div class="card-hover rounded-2xl bg-slate-800/50 border border-slate-700/30 p-5 flex flex-col">
+            <div class="flex items-center gap-2 mb-3">
+              <div class="w-8 h-8 rounded-lg bg-indigo-500/20 flex items-center justify-center">
+                <span class="text-lg">&#128161;</span>
+              </div>
+              <h3 class="font-semibold">Tips型</h3>
+              <span class="ml-auto text-xs text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-full">保存最大</span>
+            </div>
+            <div class="bg-slate-900/50 rounded-xl p-3 mb-3 border border-slate-700/20">
+              <p class="text-sm text-gray-300 whitespace-pre-wrap leading-relaxed">"集中力が続かない人へ。25分で人生変わる方法。
+
+1. タイマーを25分セット
+2. 1つのタスクだけに集中
+3. 5分休憩
+4. これを4セット繰り返す
+
+ポモドーロ・テクニック。騙されたと思ってやってみて。"</p>
+            </div>
+            <div class="flex items-center gap-3 mb-4 text-xs text-gray-500">
+              <span class="flex items-center gap-1"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> 午前9-12時</span>
+              <span class="flex items-center gap-1"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg> 保存最大</span>
+            </div>
+            <button class="buzz-template-btn w-full px-3 py-2 text-xs font-medium rounded-lg bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 border border-indigo-500/20 transition-colors mt-auto" data-template="[問題を解決する方法]\n\n1. [ステップ1]\n2. [ステップ2]\n3. [ステップ3]\n4. [ステップ4]\n\n[結果]" data-time="09:00">
+              このテンプレで作成
+            </button>
+          </div>
+
+          <!-- 10. 引用/名言型 -->
+          <div class="card-hover rounded-2xl bg-slate-800/50 border border-slate-700/30 p-5 flex flex-col">
+            <div class="flex items-center gap-2 mb-3">
+              <div class="w-8 h-8 rounded-lg bg-teal-500/20 flex items-center justify-center">
+                <span class="text-lg">&#128214;</span>
+              </div>
+              <h3 class="font-semibold">引用/名言型</h3>
+              <span class="ml-auto text-xs text-teal-400 bg-teal-500/10 px-2 py-0.5 rounded-full">引用リプ+コメント</span>
+            </div>
+            <div class="bg-slate-900/50 rounded-xl p-3 mb-3 border border-slate-700/20">
+              <p class="text-sm text-gray-300 whitespace-pre-wrap leading-relaxed">"「Stay hungry, stay foolish」- Steve Jobs
+
+この言葉を20代で聞いたとき正直ピンとこなかった。でも30代で事業に失敗して初めて意味がわかった。
+
+満たされた瞬間、成長は止まる。
+
+あなたはどう感じる？"</p>
+            </div>
+            <div class="flex items-center gap-3 mb-4 text-xs text-gray-500">
+              <span class="flex items-center gap-1"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> 朝7-9時</span>
+              <span class="flex items-center gap-1"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg> 引用リプ+コメント</span>
+            </div>
+            <button class="buzz-template-btn w-full px-3 py-2 text-xs font-medium rounded-lg bg-teal-500/10 text-teal-400 hover:bg-teal-500/20 border border-teal-500/20 transition-colors mt-auto" data-template="[有名人の名言]\n\n[自分の解釈や体験]\n\nあなたはどう感じる？" data-time="07:00">
               このテンプレで作成
             </button>
           </div>
