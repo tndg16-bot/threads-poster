@@ -1,0 +1,854 @@
+{
+  "name": "Threads投稿スケジューラ",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 21 * * *"
+            }
+          ]
+        }
+      },
+      "id": "cron-trigger",
+      "name": "毎日06:00 JST トリガー",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "投稿スケジュール"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "H",
+              "lookupValue": "承認済み"
+            }
+          ]
+        },
+        "options": {
+          "headerRow": 1
+        }
+      },
+      "id": "read-sheets",
+      "name": "Google Sheets - 投稿読込",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [480, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "PLACEHOLDER_GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets OAuth2"
+        }
+      },
+      "notes": "スプレッドシート「Threads投稿管理」シート「投稿スケジュール」を読み込み。列: A=日付, B=投稿時間, C=投稿文, D=カテゴリ, E=トピックタグ, F=記事URL, G=画像URL, H=ステータス, I=投稿ID, J=メモ"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Filter rows where date matches today (JST) and status is '承認済み'\nconst now = new Date();\n// Convert to JST (UTC+9)\nconst jstOffset = 9 * 60 * 60 * 1000;\nconst jstDate = new Date(now.getTime() + jstOffset);\nconst todayStr = jstDate.toISOString().split('T')[0]; // YYYY-MM-DD\n\nconst items = $input.all();\nconst filtered = items.filter(item => {\n  const rowDate = String(item.json['日付'] || item.json['A'] || '').trim();\n  const status = String(item.json['ステータス'] || item.json['H'] || '').trim();\n  \n  // Normalize date format: handle both YYYY/MM/DD and YYYY-MM-DD\n  const normalizedDate = rowDate.replace(/\\//g, '-');\n  \n  return normalizedDate === todayStr && status === '承認済み';\n});\n\nif (filtered.length === 0) {\n  // Return empty array to signal no posts\n  return [{ json: { _noPostsToday: true, date: todayStr, message: '本日の承認済み投稿はありません' } }];\n}\n\nreturn filtered;"
+      },
+      "id": "filter-today",
+      "name": "今日の承認済みをフィルタ",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [720, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "condition-has-posts",
+              "operator": {
+                "type": "boolean",
+                "operation": "notTrue"
+              },
+              "leftValue": "={{ $json._noPostsToday }}",
+              "rightValue": true
+            }
+          ]
+        }
+      },
+      "id": "if-has-posts",
+      "name": "承認済み投稿あり？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [960, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare the Threads API container creation request\nconst item = $input.item;\nconst text = String(item.json['投稿文'] || item.json['C'] || '');\nconst imageUrl = String(item.json['画像URL'] || item.json['G'] || '').trim();\nconst tags = String(item.json['トピックタグ'] || item.json['E'] || '').trim();\n\n// Append hashtags if present\nlet fullText = text;\nif (tags) {\n  const hashtags = tags.split(/[,、\\s]+/).filter(t => t).map(t => t.startsWith('#') ? t : `#${t}`).join(' ');\n  fullText = `${text}\\n\\n${hashtags}`;\n}\n\n// Build container params\nconst containerParams = {\n  text: fullText,\n  media_type: 'TEXT'\n};\n\n// If image URL present, switch to IMAGE type\nif (imageUrl && imageUrl !== '' && imageUrl !== 'undefined') {\n  containerParams.media_type = 'IMAGE';\n  containerParams.image_url = imageUrl;\n}\n\nreturn {\n  json: {\n    ...item.json,\n    _containerParams: containerParams,\n    _fullText: fullText,\n    _hasArticleUrl: !!(item.json['記事URL'] || item.json['F'] || '').trim(),\n    _articleUrl: (item.json['記事URL'] || item.json['F'] || '').trim(),\n    _rowNumber: item.json['row_number'] || item.json['_rowNumber'] || 0\n  }\n};"
+      },
+      "id": "prepare-container",
+      "name": "投稿データ準備",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1200, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.threads.net/v1.0/me/threads",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpCustomAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "media_type",
+              "value": "={{ $json._containerParams.media_type }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json._containerParams.text }}"
+            },
+            {
+              "name": "image_url",
+              "value": "={{ $json._containerParams.image_url }}"
+            },
+            {
+              "name": "access_token",
+              "value": "={{ $credentials.httpCustomAuth.token }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "create-container",
+      "name": "Threads API - コンテナ作成",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1440, 200],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "PLACEHOLDER_THREADS_TOKEN_CREDENTIAL_ID",
+          "name": "Threads Access Token"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "notes": "Threads API Step1: メディアコンテナを作成。media_type=TEXT or IMAGE"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Wait a few seconds for container processing, then prepare publish request\nconst item = $input.item;\nconst containerId = item.json.id;\n\nif (!containerId) {\n  throw new Error('コンテナIDが取得できませんでした: ' + JSON.stringify(item.json));\n}\n\nreturn {\n  json: {\n    ...item.json,\n    _containerId: containerId\n  }\n};"
+      },
+      "id": "prepare-publish",
+      "name": "公開準備",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1680, 200]
+    },
+    {
+      "parameters": {
+        "amount": 5,
+        "unit": "seconds"
+      },
+      "id": "wait-container",
+      "name": "コンテナ処理待ち (5秒)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [1920, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.threads.net/v1.0/me/threads_publish",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpCustomAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "creation_id",
+              "value": "={{ $json._containerId }}"
+            },
+            {
+              "name": "access_token",
+              "value": "={{ $credentials.httpCustomAuth.token }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "publish-thread",
+      "name": "Threads API - 公開",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2160, 200],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "PLACEHOLDER_THREADS_TOKEN_CREDENTIAL_ID",
+          "name": "Threads Access Token"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "notes": "Threads API Step2: コンテナIDを指定して公開"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Check if published successfully and if we need a self-reply with article URL\nconst item = $input.item;\nconst publishedId = item.json.id;\n\nif (!publishedId) {\n  throw new Error('投稿IDが取得できませんでした: ' + JSON.stringify(item.json));\n}\n\n// Retrieve original data passed through the chain\nconst hasArticleUrl = item.json._hasArticleUrl || false;\nconst articleUrl = item.json._articleUrl || '';\n\nreturn {\n  json: {\n    ...item.json,\n    _publishedId: publishedId,\n    _needsReply: hasArticleUrl && articleUrl.length > 0,\n    _articleUrl: articleUrl\n  }\n};"
+      },
+      "id": "check-reply-needed",
+      "name": "リプライ要否チェック",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2400, 200]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "condition-needs-reply",
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              },
+              "leftValue": "={{ $json._needsReply }}",
+              "rightValue": true
+            }
+          ]
+        }
+      },
+      "id": "if-needs-reply",
+      "name": "記事URLリプライ必要？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2640, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.threads.net/v1.0/me/threads",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpCustomAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "media_type",
+              "value": "TEXT"
+            },
+            {
+              "name": "text",
+              "value": "={{ '詳しくはこちら 👇\\n' + $json._articleUrl }}"
+            },
+            {
+              "name": "reply_to_id",
+              "value": "={{ $json._publishedId }}"
+            },
+            {
+              "name": "access_token",
+              "value": "={{ $credentials.httpCustomAuth.token }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "create-reply-container",
+      "name": "リプライコンテナ作成",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2880, 100],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "PLACEHOLDER_THREADS_TOKEN_CREDENTIAL_ID",
+          "name": "Threads Access Token"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "notes": "Threads API Step3: セルフリプライで記事URLを投稿"
+    },
+    {
+      "parameters": {
+        "amount": 5,
+        "unit": "seconds"
+      },
+      "id": "wait-reply-container",
+      "name": "リプライコンテナ待ち (5秒)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [3120, 100]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.threads.net/v1.0/me/threads_publish",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpCustomAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "creation_id",
+              "value": "={{ $json.id }}"
+            },
+            {
+              "name": "access_token",
+              "value": "={{ $credentials.httpCustomAuth.token }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "publish-reply",
+      "name": "リプライ公開",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3360, 100],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "PLACEHOLDER_THREADS_TOKEN_CREDENTIAL_ID",
+          "name": "Threads Access Token"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Merge back: both reply path and no-reply path converge here\nconst item = $input.item;\nconst publishedId = item.json._publishedId || item.json.id || 'unknown';\n\nreturn {\n  json: {\n    _publishedId: publishedId,\n    _status: '投稿済み',\n    _rowNumber: item.json._rowNumber || 0,\n    _fullText: item.json._fullText || '',\n    _category: item.json['カテゴリ'] || item.json['D'] || '',\n    _articleUrl: item.json._articleUrl || ''\n  }\n};"
+      },
+      "id": "merge-success",
+      "name": "成功データ統合",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3600, 200]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "投稿スケジュール"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "H": "={{ $json._status }}",
+            "I": "={{ $json._publishedId }}"
+          },
+          "matchingColumns": ["row_number"],
+          "schema": [
+            {
+              "id": "H",
+              "displayName": "H (ステータス)",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "I",
+              "displayName": "I (投稿ID)",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "update-sheets-success",
+      "name": "Google Sheets - 投稿済み更新",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [3840, 200],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "PLACEHOLDER_GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets OAuth2"
+        }
+      },
+      "notes": "H列を「投稿済み」に、I列に投稿IDを書き込む"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Collect all successful posts for Discord summary\nconst items = $input.all();\nconst now = new Date();\nconst jstOffset = 9 * 60 * 60 * 1000;\nconst jstDate = new Date(now.getTime() + jstOffset);\nconst todayStr = jstDate.toISOString().split('T')[0];\n\nconst successCount = items.length;\nconst postSummaries = items.map((item, i) => {\n  const text = (item.json._fullText || '').substring(0, 50);\n  const category = item.json._category || '未分類';\n  const id = item.json._publishedId || 'N/A';\n  return `${i + 1}. [${category}] ${text}... (ID: ${id})`;\n}).join('\\n');\n\nconst message = [\n  `📬 **Threads投稿完了レポート** (${todayStr})`,\n  ``,\n  `✅ 投稿成功: ${successCount}件`,\n  ``,\n  postSummaries,\n  ``,\n  `---`,\n  `自動投稿 by n8n`\n].join('\\n');\n\nreturn [{ json: { content: message } }];"
+      },
+      "id": "prepare-discord-success",
+      "name": "Discord通知準備 (成功)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [4080, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "PLACEHOLDER_DISCORD_WEBHOOK_URL",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "content",
+              "value": "={{ $json.content }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "discord-notify-success",
+      "name": "Discord通知 - 成功",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [4320, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Error handler: capture error details and prepare for Sheet update + Discord notification\nconst item = $input.item;\nconst errorMessage = item.json.error?.message || item.json.error || 'Unknown error';\nconst errorCode = item.json.error?.code || item.json.statusCode || 'N/A';\n\nconst now = new Date();\nconst jstOffset = 9 * 60 * 60 * 1000;\nconst jstDate = new Date(now.getTime() + jstOffset);\nconst timestamp = jstDate.toISOString().replace('T', ' ').substring(0, 19);\n\nreturn {\n  json: {\n    _status: 'エラー',\n    _errorMessage: `[${timestamp}] Error ${errorCode}: ${errorMessage}`,\n    _rowNumber: item.json._rowNumber || 0,\n    _fullText: (item.json._fullText || item.json['投稿文'] || item.json['C'] || '').substring(0, 50),\n    _category: item.json['カテゴリ'] || item.json['D'] || item.json._category || ''\n  }\n};"
+      },
+      "id": "error-handler",
+      "name": "エラーハンドリング",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2880, 500]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "投稿スケジュール"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "H": "={{ $json._status }}",
+            "J": "={{ $json._errorMessage }}"
+          },
+          "matchingColumns": ["row_number"],
+          "schema": [
+            {
+              "id": "H",
+              "displayName": "H (ステータス)",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "J",
+              "displayName": "J (メモ)",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "update-sheets-error",
+      "name": "Google Sheets - エラー更新",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [3120, 500],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "PLACEHOLDER_GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets OAuth2"
+        }
+      },
+      "notes": "H列を「エラー」に、J列にエラーメッセージを書き込む"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare Discord error notification\nconst items = $input.all();\nconst now = new Date();\nconst jstOffset = 9 * 60 * 60 * 1000;\nconst jstDate = new Date(now.getTime() + jstOffset);\nconst todayStr = jstDate.toISOString().split('T')[0];\n\nconst errorSummaries = items.map((item, i) => {\n  const text = item.json._fullText || '(不明)';\n  const err = item.json._errorMessage || 'Unknown';\n  return `${i + 1}. ${text}...\\n   ❌ ${err}`;\n}).join('\\n\\n');\n\nconst message = [\n  `🚨 **Threads投稿エラーレポート** (${todayStr})`,\n  ``,\n  `❌ エラー: ${items.length}件`,\n  ``,\n  errorSummaries,\n  ``,\n  `スプレッドシートを確認してください。`,\n  `---`,\n  `自動投稿 by n8n`\n].join('\\n');\n\nreturn [{ json: { content: message } }];"
+      },
+      "id": "prepare-discord-error",
+      "name": "Discord通知準備 (エラー)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3360, 500]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "PLACEHOLDER_DISCORD_WEBHOOK_URL",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "content",
+              "value": "={{ $json.content }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "discord-notify-error",
+      "name": "Discord通知 - エラー",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3600, 500]
+    },
+    {
+      "parameters": {
+        "jsCode": "// No approved posts for today - send a simple notification\nconst item = $input.item;\nconst message = `ℹ️ **Threads投稿スケジューラ** (${item.json.date})\\n\\n${item.json.message}\\n\\n---\\n自動投稿 by n8n`;\n\nreturn [{ json: { content: message } }];"
+      },
+      "id": "no-posts-message",
+      "name": "投稿なしメッセージ",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1200, 440]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "PLACEHOLDER_DISCORD_WEBHOOK_URL",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "content",
+              "value": "={{ $json.content }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "discord-notify-no-posts",
+      "name": "Discord通知 - 投稿なし",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1440, 440]
+    }
+  ],
+  "connections": {
+    "毎日06:00 JST トリガー": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets - 投稿読込",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Sheets - 投稿読込": {
+      "main": [
+        [
+          {
+            "node": "今日の承認済みをフィルタ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "今日の承認済みをフィルタ": {
+      "main": [
+        [
+          {
+            "node": "承認済み投稿あり？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "承認済み投稿あり？": {
+      "main": [
+        [
+          {
+            "node": "投稿データ準備",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "投稿なしメッセージ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "投稿データ準備": {
+      "main": [
+        [
+          {
+            "node": "Threads API - コンテナ作成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Threads API - コンテナ作成": {
+      "main": [
+        [
+          {
+            "node": "公開準備",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "エラーハンドリング",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "公開準備": {
+      "main": [
+        [
+          {
+            "node": "コンテナ処理待ち (5秒)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "コンテナ処理待ち (5秒)": {
+      "main": [
+        [
+          {
+            "node": "Threads API - 公開",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Threads API - 公開": {
+      "main": [
+        [
+          {
+            "node": "リプライ要否チェック",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "エラーハンドリング",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "リプライ要否チェック": {
+      "main": [
+        [
+          {
+            "node": "記事URLリプライ必要？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "記事URLリプライ必要？": {
+      "main": [
+        [
+          {
+            "node": "リプライコンテナ作成",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "成功データ統合",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "リプライコンテナ作成": {
+      "main": [
+        [
+          {
+            "node": "リプライコンテナ待ち (5秒)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "成功データ統合",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "リプライコンテナ待ち (5秒)": {
+      "main": [
+        [
+          {
+            "node": "リプライ公開",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "リプライ公開": {
+      "main": [
+        [
+          {
+            "node": "成功データ統合",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "成功データ統合",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "成功データ統合": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets - 投稿済み更新",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Sheets - 投稿済み更新": {
+      "main": [
+        [
+          {
+            "node": "Discord通知準備 (成功)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Discord通知準備 (成功)": {
+      "main": [
+        [
+          {
+            "node": "Discord通知 - 成功",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーハンドリング": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets - エラー更新",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Sheets - エラー更新": {
+      "main": [
+        [
+          {
+            "node": "Discord通知準備 (エラー)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Discord通知準備 (エラー)": {
+      "main": [
+        [
+          {
+            "node": "Discord通知 - エラー",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "投稿なしメッセージ": {
+      "main": [
+        [
+          {
+            "node": "Discord通知 - 投稿なし",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "threads",
+      "id": "1"
+    },
+    {
+      "name": "sns-automation",
+      "id": "2"
+    }
+  ],
+  "pinData": {},
+  "versionId": "1",
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": ""
+  }
+}

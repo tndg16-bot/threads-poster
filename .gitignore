@@ -16,6 +16,9 @@ test-posted-threads.json
 # Logs
 *.log
 
+# Google Service Account
+service-account.json
+
 # OS files
 .DS_Store
 Thumbs.db

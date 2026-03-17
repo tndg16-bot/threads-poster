@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="ja" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Threads投稿マネージャー - 投稿の管理・作成・分析ダッシュボード">
+  <meta name="theme-color" content="#0f172a">
+  <title>Threads投稿マネージャー</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            threads: {
+              50: '#f0f4ff',
+              100: '#dbe4ff',
+              200: '#bac8ff',
+              300: '#91a7ff',
+              400: '#748ffc',
+              500: '#5c7cfa',
+              600: '#4c6ef5',
+              700: '#4263eb',
+              800: '#3b5bdb',
+              900: '#364fc7',
+            }
+          },
+          fontFamily: {
+            sans: ['"Noto Sans JP"', '"Hiragino Sans"', '"Hiragino Kaku Gothic ProN"', 'Meiryo', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { font-family: 'Noto Sans JP', sans-serif; }
+    .toast-enter { animation: slideInRight 0.3s ease-out; }
+    .toast-exit { animation: slideOutRight 0.3s ease-in forwards; }
+    @keyframes slideInRight {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+    @keyframes slideOutRight {
+      from { transform: translateX(0); opacity: 1; }
+      to { transform: translateX(100%); opacity: 0; }
+    }
+    @keyframes pulse-soft {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
+    .pulse-soft { animation: pulse-soft 2s ease-in-out infinite; }
+    .scrollbar-thin::-webkit-scrollbar { width: 6px; }
+    .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+    .scrollbar-thin::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
+    .scrollbar-thin::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+    textarea:focus, input:focus, select:focus { outline: none; }
+    .tab-indicator {
+      transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .card-hover {
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .card-hover:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px -5px rgba(0, 0, 0, 0.3);
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-gray-100 min-h-screen">
+
+  <!-- Toast Container -->
+  <div id="toast-container" class="fixed top-4 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+  <!-- Confirm Modal -->
+  <div id="confirm-modal" class="fixed inset-0 z-40 hidden">
+    <div class="absolute inset-0 bg-black/60 backdrop-blur-sm"></div>
+    <div class="relative flex items-center justify-center min-h-screen p-4">
+      <div class="bg-slate-800 border border-slate-700 rounded-2xl shadow-2xl max-w-md w-full p-6">
+        <h3 id="confirm-title" class="text-lg font-semibold mb-2"></h3>
+        <p id="confirm-message" class="text-gray-400 text-sm mb-6"></p>
+        <div class="flex gap-3 justify-end">
+          <button id="confirm-cancel" class="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm font-medium transition-colors">
+            キャンセル
+          </button>
+          <button id="confirm-ok" class="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-sm font-medium transition-colors">
+            実行
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Header -->
+  <header class="sticky top-0 z-30 bg-slate-950/80 backdrop-blur-xl border-b border-slate-800/50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-16">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-threads-500 to-threads-700 flex items-center justify-center">
+            <svg class="w-5 h-5 text-white" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12.186 24h-.007c-3.581-.024-6.334-1.205-8.184-3.509C2.35 18.44 1.5 15.586 1.472 12.01v-.017C1.5 8.418 2.35 5.564 3.995 3.516 5.845 1.212 8.598.031 12.179.007h.014c2.746.02 5.043.725 6.826 2.098 1.677 1.29 2.858 3.13 3.509 5.467l-2.739.739c-1.085-3.937-3.741-5.554-7.603-5.58-2.738.02-4.776.873-6.055 2.537-1.18 1.535-1.8 3.79-1.844 6.699.044 2.909.664 5.163 1.844 6.699 1.279 1.664 3.317 2.517 6.055 2.537 2.135-.017 3.753-.502 4.95-1.486 1.31-1.077 1.968-2.624 1.957-4.6-.007-1.206-.309-2.143-.897-2.784-.572-.625-1.386-.963-2.416-1.002-.86.032-1.54.282-2.017.747-.46.449-.71 1.063-.745 1.828l-2.728-.069c.061-1.369.545-2.476 1.44-3.293 1.002-.914 2.374-1.384 4.08-1.398 1.685.024 3.074.59 4.128 1.683 1.069 1.109 1.613 2.61 1.617 4.467.017 2.72-.967 4.887-2.925 6.443-1.655 1.316-3.82 2.018-6.442 2.087z"/>
+            </svg>
+          </div>
+          <div>
+            <h1 class="text-lg font-bold tracking-tight">Threads投稿マネージャー</h1>
+          </div>
+        </div>
+        <div class="flex items-center gap-4">
+          <div id="quota-display" class="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800/80 border border-slate-700/50">
+            <div class="w-2 h-2 rounded-full bg-emerald-400 pulse-soft"></div>
+            <span class="text-xs text-gray-400">クォータ残:</span>
+            <span id="quota-remaining" class="text-sm font-semibold text-emerald-400">--</span>
+            <span class="text-xs text-gray-500">/ 250</span>
+          </div>
+          <button id="refresh-btn" class="p-2 rounded-lg hover:bg-slate-800 transition-colors" title="更新">
+            <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Tab Navigation -->
+  <nav class="sticky top-16 z-20 bg-slate-950/80 backdrop-blur-xl border-b border-slate-800/50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="relative flex gap-1" id="tab-nav">
+        <button class="tab-btn active px-4 py-3 text-sm font-medium transition-colors relative" data-tab="posts">
+          <span class="flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+            投稿管理
+          </span>
+        </button>
+        <button class="tab-btn px-4 py-3 text-sm font-medium transition-colors relative" data-tab="create">
+          <span class="flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            新規作成
+          </span>
+        </button>
+        <button class="tab-btn px-4 py-3 text-sm font-medium transition-colors relative" data-tab="analytics">
+          <span class="flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+            バズ分析
+          </span>
+        </button>
+        <button class="tab-btn px-4 py-3 text-sm font-medium transition-colors relative" data-tab="settings">
+          <span class="flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+            設定
+          </span>
+        </button>
+        <div id="tab-indicator" class="tab-indicator absolute bottom-0 h-0.5 bg-threads-500 rounded-full"></div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+
+    <!-- Tab 1: 投稿管理 -->
+    <section id="tab-posts" class="tab-content">
+      <!-- Filter Bar -->
+      <div class="flex flex-col sm:flex-row gap-3 mb-6">
+        <div class="flex flex-wrap gap-2 flex-1">
+          <button class="filter-btn active px-3 py-1.5 text-xs font-medium rounded-lg bg-threads-600 text-white transition-colors" data-status="all">
+            全て
+          </button>
+          <button class="filter-btn px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-800 text-gray-400 hover:bg-slate-700 transition-colors" data-status="draft">
+            下書き
+          </button>
+          <button class="filter-btn px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-800 text-gray-400 hover:bg-slate-700 transition-colors" data-status="approved">
+            承認済み
+          </button>
+          <button class="filter-btn px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-800 text-gray-400 hover:bg-slate-700 transition-colors" data-status="posted">
+            投稿済み
+          </button>
+          <button class="filter-btn px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-800 text-gray-400 hover:bg-slate-700 transition-colors" data-status="error">
+            エラー
+          </button>
+        </div>
+        <div class="flex gap-2">
+          <input type="date" id="filter-date-from" class="px-3 py-1.5 text-xs rounded-lg bg-slate-800 border border-slate-700 text-gray-300 focus:border-threads-500 transition-colors" placeholder="開始日">
+          <span class="text-gray-500 self-center text-xs">~</span>
+          <input type="date" id="filter-date-to" class="px-3 py-1.5 text-xs rounded-lg bg-slate-800 border border-slate-700 text-gray-300 focus:border-threads-500 transition-colors" placeholder="終了日">
+        </div>
+      </div>
+
+      <!-- Bulk Actions -->
+      <div id="bulk-actions" class="hidden mb-4 p-3 rounded-xl bg-threads-900/30 border border-threads-700/30 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <input type="checkbox" id="select-all" class="w-4 h-4 rounded bg-slate-700 border-slate-600 text-threads-500 focus:ring-threads-500">
+          <span class="text-sm text-gray-300"><span id="selected-count">0</span>件 選択中</span>
+        </div>
+        <div class="flex gap-2">
+          <button id="bulk-approve" class="px-3 py-1.5 text-xs font-medium rounded-lg bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30 border border-emerald-600/30 transition-colors">
+            一括承認
+          </button>
+          <button id="bulk-post" class="px-3 py-1.5 text-xs font-medium rounded-lg bg-threads-600/20 text-threads-400 hover:bg-threads-600/30 border border-threads-600/30 transition-colors">
+            一括投稿
+          </button>
+        </div>
+      </div>
+
+      <!-- Posts Grid -->
+      <div id="posts-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        <!-- Loading Skeleton -->
+        <div class="skeleton-card animate-pulse rounded-2xl bg-slate-800/50 border border-slate-700/30 p-5 h-64">
+          <div class="h-4 bg-slate-700 rounded w-1/3 mb-3"></div>
+          <div class="h-3 bg-slate-700 rounded w-full mb-2"></div>
+          <div class="h-3 bg-slate-700 rounded w-4/5 mb-2"></div>
+          <div class="h-3 bg-slate-700 rounded w-2/3 mb-4"></div>
+          <div class="flex gap-2 mb-4">
+            <div class="h-5 bg-slate-700 rounded-full w-16"></div>
+            <div class="h-5 bg-slate-700 rounded-full w-20"></div>
+          </div>
+          <div class="mt-auto flex gap-2">
+            <div class="h-8 bg-slate-700 rounded-lg w-16"></div>
+            <div class="h-8 bg-slate-700 rounded-lg w-16"></div>
+          </div>
+        </div>
+        <div class="skeleton-card animate-pulse rounded-2xl bg-slate-800/50 border border-slate-700/30 p-5 h-64 hidden md:block">
+          <div class="h-4 bg-slate-700 rounded w-1/3 mb-3"></div>
+          <div class="h-3 bg-slate-700 rounded w-full mb-2"></div>
+          <div class="h-3 bg-slate-700 rounded w-3/5 mb-4"></div>
+          <div class="flex gap-2 mb-4">
+            <div class="h-5 bg-slate-700 rounded-full w-16"></div>
+          </div>
+        </div>
+        <div class="skeleton-card animate-pulse rounded-2xl bg-slate-800/50 border border-slate-700/30 p-5 h-64 hidden xl:block">
+          <div class="h-4 bg-slate-700 rounded w-2/5 mb-3"></div>
+          <div class="h-3 bg-slate-700 rounded w-full mb-2"></div>
+          <div class="h-3 bg-slate-700 rounded w-4/5 mb-4"></div>
+        </div>
+      </div>
+
+      <!-- Empty State -->
+      <div id="posts-empty" class="hidden text-center py-20">
+        <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-slate-800 flex items-center justify-center">
+          <svg class="w-8 h-8 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+        </div>
+        <h3 class="text-lg font-semibold text-gray-400 mb-1">投稿がありません</h3>
+        <p class="text-sm text-gray-500">「新規作成」タブから投稿を作成してください</p>
+      </div>
+    </section>
+
+    <!-- Tab 2: 新規作成 -->
+    <section id="tab-create" class="tab-content hidden">
+      <div class="max-w-2xl mx-auto">
+        <div class="rounded-2xl bg-slate-800/50 border border-slate-700/30 p-6 sm:p-8">
+          <h2 class="text-xl font-bold mb-6">新規投稿を作成</h2>
+
+          <form id="create-form" class="space-y-5">
+            <!-- 日付 & 時間 -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-300 mb-1.5">投稿日</label>
+                <input type="date" id="create-date" class="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-gray-200 focus:border-threads-500 transition-colors text-sm">
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-300 mb-1.5">投稿時間</label>
+                <div class="flex gap-2">
+                  <div class="flex flex-wrap gap-1.5 flex-1">
+                    <button type="button" class="time-preset px-2.5 py-1 text-xs rounded-lg bg-slate-900 border border-slate-700 text-gray-400 hover:border-threads-500 hover:text-threads-400 transition-colors" data-time="07:00">7:00</button>
+                    <button type="button" class="time-preset px-2.5 py-1 text-xs rounded-lg bg-slate-900 border border-slate-700 text-gray-400 hover:border-threads-500 hover:text-threads-400 transition-colors" data-time="12:00">12:00</button>
+                    <button type="button" class="time-preset px-2.5 py-1 text-xs rounded-lg bg-slate-900 border border-slate-700 text-gray-400 hover:border-threads-500 hover:text-threads-400 transition-colors" data-time="18:00">18:00</button>
+                    <button type="button" class="time-preset px-2.5 py-1 text-xs rounded-lg bg-slate-900 border border-slate-700 text-gray-400 hover:border-threads-500 hover:text-threads-400 transition-colors" data-time="21:00">21:00</button>
+                  </div>
+                  <input type="time" id="create-time" class="w-24 px-3 py-1 rounded-xl bg-slate-900 border border-slate-700 text-gray-200 focus:border-threads-500 transition-colors text-sm">
+                </div>
+              </div>
+            </div>
+
+            <!-- 投稿文 -->
+            <div>
+              <label class="block text-sm font-medium text-gray-300 mb-1.5">投稿文</label>
+              <div class="relative">
+                <textarea id="create-text" rows="6" maxlength="500"
+                  class="w-full px-4 py-3 rounded-xl bg-slate-900 border border-slate-700 text-gray-200 focus:border-threads-500 transition-colors text-sm resize-none scrollbar-thin"
+                  placeholder="Threadsに投稿するテキストを入力..."></textarea>
+                <div class="absolute bottom-3 right-3 text-xs">
+                  <span id="char-count" class="text-gray-500">0</span>
+                  <span class="text-gray-600">/500</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- カテゴリ & トピックタグ -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-300 mb-1.5">カテゴリ</label>
+                <select id="create-category" class="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-gray-200 focus:border-threads-500 transition-colors text-sm">
+                  <option value="">選択してください</option>
+                  <option value="マインドセット">マインドセット</option>
+                  <option value="AI">AI</option>
+                  <option value="テクノロジー">テクノロジー</option>
+                  <option value="ビジネス">ビジネス</option>
+                  <option value="コーチング">コーチング</option>
+                  <option value="学習">学習</option>
+                  <option value="ライフスタイル">ライフスタイル</option>
+                  <option value="その他">その他</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-300 mb-1.5">トピックタグ</label>
+                <input type="text" id="create-topic-tag" maxlength="50"
+                  class="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-gray-200 focus:border-threads-500 transition-colors text-sm"
+                  placeholder="例: AI活用">
+                <p class="text-xs text-gray-500 mt-1">1~50文字、. と & は使用不可</p>
+              </div>
+            </div>
+
+            <!-- 記事URL -->
+            <div>
+              <label class="block text-sm font-medium text-gray-300 mb-1.5">記事URL</label>
+              <input type="url" id="create-url"
+                class="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-gray-200 focus:border-threads-500 transition-colors text-sm"
+                placeholder="https://example.com/blog/...">
+            </div>
+
+            <!-- 画像URL -->
+            <div>
+              <label class="block text-sm font-medium text-gray-300 mb-1.5">画像URL</label>
+              <input type="url" id="create-image-url"
+                class="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-gray-200 focus:border-threads-500 transition-colors text-sm"
+                placeholder="https://example.com/images/...">
+              <div id="image-preview" class="hidden mt-3">
+                <img id="image-preview-img" src="" alt="プレビュー" class="max-h-48 rounded-xl border border-slate-700 object-cover">
+              </div>
+            </div>
+
+            <!-- Submit Buttons -->
+            <div class="flex gap-3 pt-2">
+              <button type="button" id="save-draft" class="flex-1 px-4 py-3 rounded-xl bg-slate-700 hover:bg-slate-600 text-sm font-semibold transition-colors">
+                下書き保存
+              </button>
+              <button type="button" id="save-approved" class="flex-1 px-4 py-3 rounded-xl bg-gradient-to-r from-threads-600 to-threads-700 hover:from-threads-500 hover:to-threads-600 text-sm font-semibold transition-colors">
+                承認して保存
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tab 3: バズ分析 -->
+    <section id="tab-analytics" class="tab-content hidden">
+      <!-- 投稿パフォーマンス -->
+      <div class="mb-8">
+        <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
+          <svg class="w-5 h-5 text-threads-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+          投稿パフォーマンス
+        </h2>
+        <div id="performance-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          <!-- Performance cards loaded by JS -->
+          <div class="text-center py-12 col-span-full">
+            <div class="w-12 h-12 mx-auto mb-3 rounded-xl bg-slate-800 flex items-center justify-center">
+              <svg class="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+            </div>
+            <p class="text-sm text-gray-500">投稿済みの投稿があるとパフォーマンスデータが表示されます</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- バズる投稿の型 -->
+      <div>
+        <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
+          <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+          バズる投稿の型
+        </h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" id="buzz-patterns">
+
+          <!-- 質問型 -->
+          <div class="card-hover rounded-2xl bg-slate-800/50 border border-slate-700/30 p-5">
+            <div class="flex items-center gap-2 mb-3">
+              <div class="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center">
+                <span class="text-lg">?</span>
+              </div>
+              <h3 class="font-semibold">質問型</h3>
+              <span class="ml-auto text-xs text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-full">高エンゲージメント</span>
+            </div>
+            <div class="bg-slate-900/50 rounded-xl p-3 mb-3 border border-slate-700/20">
+              <p class="text-sm text-gray-300 italic">"〜だと思いますか？実は..."</p>
+            </div>
+            <p class="text-xs text-gray-400 mb-4">読者に考えさせる質問で始めると、コメントやいいねが集まりやすい。「実は」で意外性を出すのがポイント。</p>
+            <button class="buzz-template-btn w-full px-3 py-2 text-xs font-medium rounded-lg bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 border border-purple-500/20 transition-colors" data-template="〜だと思いますか？\n\n実は、{内容}\n\nあなたはどう思いますか？">
+              このテンプレで作成
+            </button>
+          </div>
+
+          <!-- 数字型 -->
+          <div class="card-hover rounded-2xl bg-slate-800/50 border border-slate-700/30 p-5">
+            <div class="flex items-center gap-2 mb-3">
+              <div class="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center">
+                <span class="text-lg font-bold text-blue-400">#</span>
+              </div>
+              <h3 class="font-semibold">数字型</h3>
+              <span class="ml-auto text-xs text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full">信頼性UP</span>
+            </div>
+            <div class="bg-slate-900/50 rounded-xl p-3 mb-3 border border-slate-700/20">
+              <p class="text-sm text-gray-300 italic">"○○が△△%アップした方法..."</p>
+            </div>
+            <p class="text-xs text-gray-400 mb-4">具体的な数字を含めることで信頼性と目を引く力がアップ。割合や回数など定量的なデータを入れよう。</p>
+            <button class="buzz-template-btn w-full px-3 py-2 text-xs font-medium rounded-lg bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 border border-blue-500/20 transition-colors" data-template="{指標}が{数字}%{変化}した方法\n\n{具体的な内容}\n\n詳しくはリプライで 👇">
+              このテンプレで作成
+            </button>
+          </div>
+
+          <!-- 体験型 -->
+          <div class="card-hover rounded-2xl bg-slate-800/50 border border-slate-700/30 p-5">
+            <div class="flex items-center gap-2 mb-3">
+              <div class="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center">
+                <span class="text-lg">!</span>
+              </div>
+              <h3 class="font-semibold">体験型</h3>
+              <span class="ml-auto text-xs text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">共感獲得</span>
+            </div>
+            <div class="bg-slate-900/50 rounded-xl p-3 mb-3 border border-slate-700/20">
+              <p class="text-sm text-gray-300 italic">"〜してみたら、衝撃の結果に..."</p>
+            </div>
+            <p class="text-xs text-gray-400 mb-4">自分の体験談をベースにすると共感を得やすい。「してみたら」「やってみた」で始めると読まれやすい。</p>
+            <button class="buzz-template-btn w-full px-3 py-2 text-xs font-medium rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20 transition-colors" data-template="{行動}してみたら、{結果}になった話\n\n{詳細}\n\n同じ経験ある人いますか？">
+              このテンプレで作成
+            </button>
+          </div>
+
+          <!-- 逆説型 -->
+          <div class="card-hover rounded-2xl bg-slate-800/50 border border-slate-700/30 p-5">
+            <div class="flex items-center gap-2 mb-3">
+              <div class="w-8 h-8 rounded-lg bg-red-500/20 flex items-center justify-center">
+                <span class="text-lg font-bold text-red-400">!</span>
+              </div>
+              <h3 class="font-semibold">逆説型</h3>
+              <span class="ml-auto text-xs text-red-400 bg-red-500/10 px-2 py-0.5 rounded-full">注目度MAX</span>
+            </div>
+            <div class="bg-slate-900/50 rounded-xl p-3 mb-3 border border-slate-700/20">
+              <p class="text-sm text-gray-300 italic">"実は〜ではない。本当は..."</p>
+            </div>
+            <p class="text-xs text-gray-400 mb-4">常識を覆す内容は目を引く。「実は」「本当は」でギャップを作り、読者の興味を引こう。</p>
+            <button class="buzz-template-btn w-full px-3 py-2 text-xs font-medium rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/20 transition-colors" data-template="「{常識}」は間違いだった\n\n実は、{真実}\n\n意外じゃないですか？">
+              このテンプレで作成
+            </button>
+          </div>
+
+          <!-- リスト型 -->
+          <div class="card-hover rounded-2xl bg-slate-800/50 border border-slate-700/30 p-5">
+            <div class="flex items-center gap-2 mb-3">
+              <div class="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center">
+                <span class="text-lg font-bold text-amber-400">5</span>
+              </div>
+              <h3 class="font-semibold">リスト型</h3>
+              <span class="ml-auto text-xs text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full">保存率UP</span>
+            </div>
+            <div class="bg-slate-900/50 rounded-xl p-3 mb-3 border border-slate-700/20">
+              <p class="text-sm text-gray-300 italic">"○つの理由 / ○つの方法..."</p>
+            </div>
+            <p class="text-xs text-gray-400 mb-4">リスト形式は読みやすく保存されやすい。奇数（3,5,7）が心理的に好まれる。具体的な数字をタイトルに入れよう。</p>
+            <button class="buzz-template-btn w-full px-3 py-2 text-xs font-medium rounded-lg bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 border border-amber-500/20 transition-colors" data-template="{テーマ}の{数}つの{理由/方法}\n\n1. {項目1}\n2. {項目2}\n3. {項目3}\n\n保存して後で見返してね">
+              このテンプレで作成
+            </button>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- Tab 4: 設定 -->
+    <section id="tab-settings" class="tab-content hidden">
+      <div class="max-w-2xl mx-auto space-y-6">
+
+        <!-- Google Sheets接続 -->
+        <div class="rounded-2xl bg-slate-800/50 border border-slate-700/30 p-6">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="font-semibold flex items-center gap-2">
+              <svg class="w-5 h-5 text-green-400" viewBox="0 0 24 24" fill="currentColor"><path d="M19.385 2H4.615A2.615 2.615 0 002 4.615v14.77A2.615 2.615 0 004.615 22h14.77A2.615 2.615 0 0022 19.385V4.615A2.615 2.615 0 0019.385 2zM8.462 17.846H5.846v-2.615h2.616v2.615zm0-4.923H5.846v-2.615h2.616v2.615zm0-4.923H5.846V5.385h2.616V8zm4.922 9.846h-2.615v-2.615h2.615v2.615zm0-4.923h-2.615v-2.615h2.615v2.615zm0-4.923h-2.615V5.385h2.615V8zm4.923 9.846h-2.615v-2.615h2.615v2.615zm0-4.923h-2.615v-2.615h2.615v2.615zm0-4.923h-2.615V5.385h2.615V8z"/></svg>
+              Google Sheets接続
+            </h3>
+            <div id="sheets-status" class="flex items-center gap-1.5">
+              <div class="w-2.5 h-2.5 rounded-full bg-gray-500"></div>
+              <span class="text-xs text-gray-400">未確認</span>
+            </div>
+          </div>
+          <p class="text-sm text-gray-400 mb-4">投稿データの保存・管理にGoogle Sheetsを使用します。</p>
+          <button id="check-sheets" class="px-4 py-2 text-sm rounded-lg bg-green-600/20 text-green-400 hover:bg-green-600/30 border border-green-600/30 transition-colors">
+            接続を確認
+          </button>
+        </div>
+
+        <!-- Threads API接続 -->
+        <div class="rounded-2xl bg-slate-800/50 border border-slate-700/30 p-6">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="font-semibold flex items-center gap-2">
+              <svg class="w-5 h-5 text-threads-400" viewBox="0 0 24 24" fill="currentColor"><path d="M12.186 24h-.007c-3.581-.024-6.334-1.205-8.184-3.509C2.35 18.44 1.5 15.586 1.472 12.01v-.017C1.5 8.418 2.35 5.564 3.995 3.516 5.845 1.212 8.598.031 12.179.007h.014c2.746.02 5.043.725 6.826 2.098 1.677 1.29 2.858 3.13 3.509 5.467l-2.739.739c-1.085-3.937-3.741-5.554-7.603-5.58-2.738.02-4.776.873-6.055 2.537-1.18 1.535-1.8 3.79-1.844 6.699.044 2.909.664 5.163 1.844 6.699 1.279 1.664 3.317 2.517 6.055 2.537 2.135-.017 3.753-.502 4.95-1.486 1.31-1.077 1.968-2.624 1.957-4.6-.007-1.206-.309-2.143-.897-2.784-.572-.625-1.386-.963-2.416-1.002-.86.032-1.54.282-2.017.747-.46.449-.71 1.063-.745 1.828l-2.728-.069c.061-1.369.545-2.476 1.44-3.293 1.002-.914 2.374-1.384 4.08-1.398 1.685.024 3.074.59 4.128 1.683 1.069 1.109 1.613 2.61 1.617 4.467.017 2.72-.967 4.887-2.925 6.443-1.655 1.316-3.82 2.018-6.442 2.087z"/></svg>
+              Threads API接続
+            </h3>
+            <div id="threads-status" class="flex items-center gap-1.5">
+              <div class="w-2.5 h-2.5 rounded-full bg-gray-500"></div>
+              <span class="text-xs text-gray-400">未確認</span>
+            </div>
+          </div>
+          <p class="text-sm text-gray-400 mb-3">Threads Graph APIとの接続状態を確認します。</p>
+          <div id="threads-quota-detail" class="hidden mb-4 p-3 rounded-xl bg-slate-900/50 border border-slate-700/20">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs text-gray-400">投稿クォータ (24h)</span>
+              <span id="settings-quota-text" class="text-sm font-semibold text-threads-400">-- / 250</span>
+            </div>
+            <div class="w-full h-2 bg-slate-700 rounded-full overflow-hidden">
+              <div id="settings-quota-bar" class="h-full bg-gradient-to-r from-threads-500 to-threads-400 rounded-full transition-all duration-500" style="width: 0%"></div>
+            </div>
+          </div>
+          <button id="check-threads" class="px-4 py-2 text-sm rounded-lg bg-threads-600/20 text-threads-400 hover:bg-threads-600/30 border border-threads-600/30 transition-colors">
+            接続を確認
+          </button>
+        </div>
+
+        <!-- n8n Webhook URL -->
+        <div class="rounded-2xl bg-slate-800/50 border border-slate-700/30 p-6">
+          <h3 class="font-semibold flex items-center gap-2 mb-4">
+            <svg class="w-5 h-5 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
+            n8n Webhook URL
+          </h3>
+          <p class="text-sm text-gray-400 mb-3">n8nワークフローのWebhook URLを設定します。</p>
+          <div class="flex gap-2">
+            <input type="url" id="n8n-webhook-url"
+              class="flex-1 px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-gray-200 focus:border-orange-500 transition-colors text-sm"
+              placeholder="https://n8n.example.com/webhook/..."
+              value="">
+            <button id="save-webhook" class="px-4 py-2.5 text-sm rounded-xl bg-orange-600/20 text-orange-400 hover:bg-orange-600/30 border border-orange-600/30 transition-colors font-medium">
+              保存
+            </button>
+          </div>
+        </div>
+
+        <!-- Auto-posting Toggle -->
+        <div class="rounded-2xl bg-slate-800/50 border border-slate-700/30 p-6">
+          <div class="flex items-center justify-between">
+            <div>
+              <h3 class="font-semibold flex items-center gap-2 mb-1">
+                <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                自動投稿
+              </h3>
+              <p class="text-sm text-gray-400">承認済みの投稿を自動的にスケジュール投稿します。</p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="auto-post-toggle" class="sr-only peer">
+              <div class="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-threads-600"></div>
+            </label>
+          </div>
+
+          <!-- Posting Schedule Info -->
+          <div id="schedule-info" class="mt-4 p-3 rounded-xl bg-slate-900/50 border border-slate-700/20 hidden">
+            <h4 class="text-xs font-medium text-gray-400 mb-2">投稿スケジュール (JST)</h4>
+            <div class="grid grid-cols-2 gap-2">
+              <div class="flex items-center gap-2 text-xs">
+                <div class="w-1.5 h-1.5 rounded-full bg-amber-400"></div>
+                <span class="text-gray-300">07:00</span>
+                <span class="text-gray-500">朝 (通勤時間)</span>
+              </div>
+              <div class="flex items-center gap-2 text-xs">
+                <div class="w-1.5 h-1.5 rounded-full bg-green-400"></div>
+                <span class="text-gray-300">12:00</span>
+                <span class="text-gray-500">昼 (ランチ)</span>
+              </div>
+              <div class="flex items-center gap-2 text-xs">
+                <div class="w-1.5 h-1.5 rounded-full bg-blue-400"></div>
+                <span class="text-gray-300">18:00</span>
+                <span class="text-gray-500">夕方 (仕事終わり)</span>
+              </div>
+              <div class="flex items-center gap-2 text-xs">
+                <div class="w-1.5 h-1.5 rounded-full bg-purple-400"></div>
+                <span class="text-gray-300">21:00</span>
+                <span class="text-gray-500">夜 (リラックス)</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="border-t border-slate-800/50 mt-12">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+      <div class="flex items-center justify-between text-xs text-gray-600">
+        <span>Threads投稿マネージャー v1.0</span>
+        <span id="last-refreshed">最終更新: --</span>
+      </div>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,491 @@
+{
+  "name": "Threads投稿案自動生成",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 1 * * 0"
+            }
+          ]
+        }
+      },
+      "id": "cron-weekly",
+      "name": "毎週日曜10:00 JST トリガー",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300],
+      "notes": "日曜10:00 JST = 日曜01:00 UTC"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "PLACEHOLDER_PORTFOLIO_SITE_URL/sitemap.xml",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "fetch-sitemap",
+      "name": "ポートフォリオ sitemap取得",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 300],
+      "notes": "ブログのsitemap.xmlまたはRSSフィードを取得。URLをポートフォリオサイトに変更してください。RSS(feed.xml等)でも可。"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse sitemap XML to extract blog post URLs and lastmod dates\nconst xmlData = $input.item.json.data || $input.item.json.body || '';\n\n// Simple XML parsing for sitemap entries\nconst urlEntries = [];\nconst urlRegex = /<url>([\\s\\S]*?)<\\/url>/g;\nlet match;\n\nwhile ((match = urlRegex.exec(xmlData)) !== null) {\n  const block = match[1];\n  \n  const locMatch = block.match(/<loc>([^<]+)<\\/loc>/);\n  const lastmodMatch = block.match(/<lastmod>([^<]+)<\\/lastmod>/);\n  \n  if (locMatch) {\n    const url = locMatch[1].trim();\n    const lastmod = lastmodMatch ? lastmodMatch[1].trim() : '';\n    \n    // Only include blog/article pages (adjust pattern to match your site)\n    if (url.includes('/blog/') || url.includes('/posts/') || url.includes('/articles/')) {\n      urlEntries.push({\n        url: url,\n        lastmod: lastmod\n      });\n    }\n  }\n}\n\n// Sort by lastmod descending (newest first)\nurlEntries.sort((a, b) => {\n  if (!a.lastmod || !b.lastmod) return 0;\n  return b.lastmod.localeCompare(a.lastmod);\n});\n\n// Take latest entries (max 10 for draft generation)\nconst latest = urlEntries.slice(0, 10);\n\nif (latest.length === 0) {\n  return [{ json: { _noNewPosts: true, message: '新しいブログ記事が見つかりませんでした' } }];\n}\n\nreturn latest.map(entry => ({ json: entry }));"
+      },
+      "id": "parse-sitemap",
+      "name": "Sitemap解析",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [720, 300],
+      "notes": "サイトマップXMLからブログ記事URLを抽出。URLパスのパターン(/blog/, /posts/, /articles/)は必要に応じて調整。"
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "投稿スケジュール"
+        },
+        "options": {
+          "headerRow": 1
+        }
+      },
+      "id": "read-existing-sheets",
+      "name": "Google Sheets - 既存投稿読込",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [720, 520],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "PLACEHOLDER_GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets OAuth2"
+        }
+      },
+      "notes": "重複チェック用に既存の投稿スケジュールを読み込む"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "mergeByFields": {
+          "values": [
+            {
+              "field1": "url",
+              "field2": "記事URL"
+            }
+          ]
+        },
+        "joinMode": "keepNonMatches",
+        "outputDataFrom": "input1",
+        "options": {}
+      },
+      "id": "merge-deduplicate",
+      "name": "重複除外マージ",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [960, 400],
+      "notes": "既にスプレッドシートに記事URLが存在するものを除外"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "condition-has-new",
+              "operator": {
+                "type": "boolean",
+                "operation": "notTrue"
+              },
+              "leftValue": "={{ $json._noNewPosts }}",
+              "rightValue": true
+            }
+          ]
+        }
+      },
+      "id": "if-has-new-posts",
+      "name": "新規記事あり？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1200, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// For each new blog post URL, generate a draft row with optimal posting times\n// Distribute across Mon-Sat, using JST 7/12/18/21 time windows\n\nconst items = $input.all();\nconst now = new Date();\nconst jstOffset = 9 * 60 * 60 * 1000;\nconst jstNow = new Date(now.getTime() + jstOffset);\n\n// Find next Monday\nconst dayOfWeek = jstNow.getUTCDay(); // 0=Sun\nconst daysUntilMonday = dayOfWeek === 0 ? 1 : (8 - dayOfWeek);\nconst nextMonday = new Date(jstNow);\nnextMonday.setUTCDate(nextMonday.getUTCDate() + daysUntilMonday);\nnextMonday.setUTCHours(0, 0, 0, 0);\n\n// Posting time windows (JST hours)\nconst timeWindows = ['07:00', '12:00', '18:00', '21:00'];\n\n// Days Mon(1) - Sat(6) = 6 days, 4 slots each = 24 slots per week\nconst days = [0, 1, 2, 3, 4, 5]; // offsets from Monday\n\nconst draftRows = [];\nlet slotIndex = 0;\n\nfor (const item of items) {\n  const url = item.json.url || '';\n  \n  // Calculate day and time slot\n  const dayOffset = days[slotIndex % days.length];\n  const timeSlot = timeWindows[Math.floor(slotIndex / days.length) % timeWindows.length];\n  \n  // Calculate target date\n  const targetDate = new Date(nextMonday);\n  targetDate.setUTCDate(targetDate.getUTCDate() + dayOffset);\n  const dateStr = targetDate.toISOString().split('T')[0]; // YYYY-MM-DD\n  \n  // Extract slug/title from URL for draft text\n  const urlParts = url.split('/');\n  const slug = urlParts[urlParts.length - 1] || urlParts[urlParts.length - 2] || 'article';\n  const readableSlug = slug.replace(/-/g, ' ').replace(/_/g, ' ');\n  \n  // Generate draft templates based on category patterns\n  const draftTemplates = [\n    `📝 新しい記事を書きました！\\n\\n「${readableSlug}」\\n\\n詳しくはブログで 👇`,\n    `💡 ${readableSlug}について解説しました！\\n\\nポイントをまとめています。`,\n    `🔥 ブログ更新！\\n\\n${readableSlug}\\n\\n気になる方はチェックしてみてください！`\n  ];\n  \n  const draftText = draftTemplates[slotIndex % draftTemplates.length];\n  \n  draftRows.push({\n    json: {\n      '日付': dateStr,\n      '投稿時間': timeSlot,\n      '投稿文': draftText,\n      'カテゴリ': '記事紹介',\n      'トピックタグ': 'ブログ,記事',\n      '記事URL': url,\n      '画像URL': '',\n      'ステータス': '下書き',\n      '投稿ID': '',\n      'メモ': `自動生成: ${new Date().toISOString().split('T')[0]}`\n    }\n  });\n  \n  slotIndex++;\n}\n\nreturn draftRows;"
+      },
+      "id": "generate-drafts",
+      "name": "投稿案生成・スケジュール割当",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1440, 300],
+      "notes": "各記事に対して下書き投稿文を生成し、月〜土の7/12/18/21時に分散配置"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "投稿スケジュール"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "A": "={{ $json['日付'] }}",
+            "B": "={{ $json['投稿時間'] }}",
+            "C": "={{ $json['投稿文'] }}",
+            "D": "={{ $json['カテゴリ'] }}",
+            "E": "={{ $json['トピックタグ'] }}",
+            "F": "={{ $json['記事URL'] }}",
+            "G": "={{ $json['画像URL'] }}",
+            "H": "={{ $json['ステータス'] }}",
+            "I": "={{ $json['投稿ID'] }}",
+            "J": "={{ $json['メモ'] }}"
+          },
+          "schema": [
+            {
+              "id": "A",
+              "displayName": "A (日付)",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "B",
+              "displayName": "B (投稿時間)",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "C",
+              "displayName": "C (投稿文)",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "D",
+              "displayName": "D (カテゴリ)",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "E",
+              "displayName": "E (トピックタグ)",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "F",
+              "displayName": "F (記事URL)",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "G",
+              "displayName": "G (画像URL)",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "H",
+              "displayName": "H (ステータス)",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "I",
+              "displayName": "I (投稿ID)",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "J",
+              "displayName": "J (メモ)",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "write-drafts-sheets",
+      "name": "Google Sheets - 下書き追加",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1680, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "PLACEHOLDER_GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets OAuth2"
+        }
+      },
+      "notes": "生成した下書きをスプレッドシートに追記。ステータスは「下書き」"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare summary for Discord notification\nconst items = $input.all();\nconst now = new Date();\nconst jstOffset = 9 * 60 * 60 * 1000;\nconst jstDate = new Date(now.getTime() + jstOffset);\nconst todayStr = jstDate.toISOString().split('T')[0];\n\nconst draftCount = items.length;\n\n// Group by date for summary\nconst byDate = {};\nfor (const item of items) {\n  const date = item.json['日付'] || item.json.A || 'unknown';\n  const time = item.json['投稿時間'] || item.json.B || '';\n  if (!byDate[date]) byDate[date] = [];\n  byDate[date].push(time);\n}\n\nconst schedule = Object.entries(byDate)\n  .sort(([a], [b]) => a.localeCompare(b))\n  .map(([date, times]) => `  ${date}: ${times.join(', ')}`)\n  .join('\\n');\n\nconst message = [\n  `📋 **Threads投稿案 自動生成レポート** (${todayStr})`,\n  ``,\n  `✏️ 新規下書き: ${draftCount}件`,\n  ``,\n  `**配信スケジュール:**`,\n  schedule,\n  ``,\n  `⚠️ スプレッドシートで内容を確認し、「承認済み」に変更してください。`,\n  `---`,\n  `自動生成 by n8n`\n].join('\\n');\n\nreturn [{ json: { content: message } }];"
+      },
+      "id": "prepare-discord-drafts",
+      "name": "Discord通知準備",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1920, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "PLACEHOLDER_DISCORD_WEBHOOK_URL",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "content",
+              "value": "={{ $json.content }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "discord-notify-drafts",
+      "name": "Discord通知 - 下書き生成完了",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2160, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// No new posts found\nconst now = new Date();\nconst jstOffset = 9 * 60 * 60 * 1000;\nconst jstDate = new Date(now.getTime() + jstOffset);\nconst todayStr = jstDate.toISOString().split('T')[0];\n\nconst message = `ℹ️ **Threads投稿案 自動生成** (${todayStr})\\n\\n新しいブログ記事が見つかりませんでした。\\n既存の投稿スケジュールを確認してください。\\n\\n---\\n自動生成 by n8n`;\n\nreturn [{ json: { content: message } }];"
+      },
+      "id": "no-new-posts-message",
+      "name": "新規記事なしメッセージ",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1440, 520]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "PLACEHOLDER_DISCORD_WEBHOOK_URL",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "content",
+              "value": "={{ $json.content }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "discord-notify-no-new",
+      "name": "Discord通知 - 新規記事なし",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1680, 520]
+    }
+  ],
+  "connections": {
+    "毎週日曜10:00 JST トリガー": {
+      "main": [
+        [
+          {
+            "node": "ポートフォリオ sitemap取得",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Google Sheets - 既存投稿読込",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ポートフォリオ sitemap取得": {
+      "main": [
+        [
+          {
+            "node": "Sitemap解析",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sitemap解析": {
+      "main": [
+        [
+          {
+            "node": "重複除外マージ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Sheets - 既存投稿読込": {
+      "main": [
+        [
+          {
+            "node": "重複除外マージ",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "重複除外マージ": {
+      "main": [
+        [
+          {
+            "node": "新規記事あり？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "新規記事あり？": {
+      "main": [
+        [
+          {
+            "node": "投稿案生成・スケジュール割当",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "新規記事なしメッセージ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "投稿案生成・スケジュール割当": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets - 下書き追加",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Sheets - 下書き追加": {
+      "main": [
+        [
+          {
+            "node": "Discord通知準備",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Discord通知準備": {
+      "main": [
+        [
+          {
+            "node": "Discord通知 - 下書き生成完了",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "新規記事なしメッセージ": {
+      "main": [
+        [
+          {
+            "node": "Discord通知 - 新規記事なし",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "threads",
+      "id": "1"
+    },
+    {
+      "name": "sns-automation",
+      "id": "2"
+    },
+    {
+      "name": "content-generation",
+      "id": "3"
+    }
+  ],
+  "pinData": {},
+  "versionId": "1",
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": ""
+  }
+}
